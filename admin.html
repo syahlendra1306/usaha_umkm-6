@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#080d17">
+  <title>Admin | Promosi UMKM</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header>
+    <div class="container nav">
+      <a class="brand" href="index.html"><span class="brandmark">PU</span><span>PROMOSI UMKM<small>PANEL ADMIN</small></span></a>
+      <a href="index.html" class="links" style="display:flex">Kembali ke Website</a>
+    </div>
+  </header>
+  <main class="container section" style="min-height:70vh">
+    <section id="login-panel" class="formbox" style="max-width:760px;margin:20px auto">
+      <h2>Login Admin</h2>
+      <p class="lead">Gunakan email dan kata sandi akun admin Supabase yang sudah didaftarkan.</p>
+      <form id="admin-login" method="post" action="admin.html" autocomplete="on">
+        <div class="formgrid">
+          <div class="field full">
+            <label for="admin-email">Email admin</label>
+            <input id="admin-email" name="email" type="email" placeholder="Email admin" autocomplete="username" required>
+          </div>
+          <div class="field full">
+            <label for="admin-password">Kata sandi</label>
+            <input id="admin-password" name="password" type="password" placeholder="Kata sandi admin" autocomplete="current-password" required>
+          </div>
+          <div class="field full"><button class="btn" type="submit">Masuk ke Panel ↗</button></div>
+        </div>
+      </form>
+      <p id="login-message" class="hint" role="status" aria-live="polite"></p>
+    </section>
+
+    <section id="admin-panel" style="display:none">
+      <div class="head">
+        <span class="eyebrow">PENGELOLAAN PROMOSI</span>
+        <h1>Pengajuan UMKM</h1>
+        <p>Periksa pengajuan, lalu setujui agar tampil di halaman publik atau tolak jika tidak sesuai.</p>
+        <button id="logout-admin" class="btn btn-outline" type="button">Keluar</button>
+      </div>
+      <div id="submission-list" class="listing" style="grid-template-columns:1fr"></div>
+    </section>
+  </main>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
