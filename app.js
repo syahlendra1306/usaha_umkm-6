@@ -1,0 +1,111 @@
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./supabase-config.js";
+const configured = SUPABASE_URL.startsWith("https://") && !SUPABASE_URL.includes("ISI_") && SUPABASE_ANON_KEY.length > 30 && !SUPABASE_ANON_KEY.includes("ISI_");
+const db = configured ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+const STORAGE_BUCKET = "umkm-products";
+const demo = [
+ {id:"dapur-minang",name:"Dapur Minang Uni",category:"Kuliner",location:"Payakumbuh",description:"Aneka masakan rumahan dan makanan khas Minangkabau.",product:"Rendang, dendeng, dan nasi kotak",phone:"6281234567890",emoji:"🍛",price:85000},
+ {id:"fashion-lokal",name:"Rancak Fashion",category:"Fashion",location:"Bukittinggi",description:"Pakaian kasual dan aksesori dengan pilihan model menarik.",product:"Baju, hijab, dan aksesori",phone:"6281234567890",emoji:"👕",price:50000},
+ {id:"kerajinan-kayu",name:"Karya Kayu Kreatif",category:"Kerajinan",location:"Agam",description:"Produk kerajinan dan dekorasi berbahan kayu.",product:"Hiasan rumah dan souvenir",phone:"6281234567890",emoji:"🪵",price:100000},
+ {id:"teknologi-jaya",name:"Teknologi Jaya",category:"Jasa",location:"Payakumbuh",description:"Layanan servis komputer dan instalasi jaringan.",product:"Servis komputer dan jaringan",phone:"6281234567890",emoji:"💻"}
+];
+const navItems=[["index.html","Beranda"],["umkm.html","Semua UMKM"],["kategori.html","Kategori"],["produk.html","Promosi Produk"],["produk-terbaru.html","Produk Terbaru"],["tambah-produk.html","Tambah Produk"],["tentang.html","Tentang"],["panduan.html","Panduan"],["kontak.html","Kontak"]];
+const page=location.pathname.split("/").pop()||"index.html";
+const nav=document.querySelector(".links");
+if(nav && !page.includes("admin")){nav.innerHTML=navItems.map(([u,t])=>`<a class="${page===u?"active":""}" href="${u}">${t}</a>`).join("")+`<a class="navbtn" href="daftar.html">Daftarkan Usaha +</a>`;}
+const menu=document.querySelector(".menu"); if(menu&&nav){menu.addEventListener("click",()=>nav.classList.toggle("open"));nav.querySelectorAll("a").forEach(a=>a.addEventListener("click",()=>nav.classList.remove("open")));}
+document.querySelectorAll("[data-year]").forEach(e=>e.textContent=new Date().getFullYear());
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const rupiah=n=>n===null||n===undefined||n===""?"":new Intl.NumberFormat("id-ID",{style:"currency",currency:"IDR",maximumFractionDigits:0}).format(Number(n));
+function productVisual(b,cls="listing-cover"){return b.product_image?`<div class="${cls} image-cover"><img src="${esc(b.product_image)}" alt="Foto produk ${esc(b.product||b.name)}" loading="lazy"></div>`:`<div class="${cls}">${esc(b.emoji||"🏪")}</div>`;}
+function card(b){return `<article class="card listing-card">${productVisual(b)}<div class="listing-body"><span class="meta">${esc(b.category)} • ${esc(b.location)}</span><h3>${esc(b.name)}</h3><p>${esc(b.description)}</p>${b.price!==null&&b.price!==undefined&&b.price!==""?`<p class="product-price">${esc(rupiah(b.price))}</p>`:""}<a class="btn" href="detail.html?id=${encodeURIComponent(b.id)}">Lihat Usaha ↗</a></div></article>`;}
+function render(target,items){const el=document.querySelector(target);if(el)el.innerHTML=items.length?items.map(card).join():'<div class="empty">Belum ada usaha yang ditampilkan.</div>';}
+async function getApproved(){if(!db)return demo;const {data,error}=await db.from("businesses").select("id,name,category,location,description,product,phone,emoji,price,product_image").eq("status","approved").order("created_at",{ascending:false});if(error){console.error(error);return [];}return data||[];}
+let all=[];
+async function loadListings(){all=await getApproved();render("#featured",all.slice(0,3));render("#all-listings",all);applyFilters();}
+function applyFilters(){const q=(document.querySelector("#search-business")?.value||"").toLowerCase(),c=document.querySelector("#category-filter")?.value||"";render("#all-listings",all.filter(b=>(!c||b.category===c)&&[b.name,b.description,b.location,b.product].join(" ").toLowerCase().includes(q)));}
+document.querySelector("#search-business")?.addEventListener("input",applyFilters);document.querySelector("#category-filter")?.addEventListener("change",applyFilters);
+const detail=document.querySelector("#business-detail");
+if(detail){const id=new URLSearchParams(location.search).get("id");(async()=>{const businesses=await getApproved();const b=businesses.find(x=>String(x.id)===id);detail.innerHTML=b?`<div class="detail-layout">${productVisual(b,"detail-art")}<div><span class="chip">${esc(b.category)}</span><h1>${esc(b.name)}</h1><p class="lead">${esc(b.description)}</p><p><b>Lokasi:</b> ${esc(b.location)}</p><p><b>Produk/Jasa:</b> ${esc(b.product)}</p>${b.price!==null&&b.price!==undefined&&b.price!==""?`<p class="product-price detail-price">${esc(rupiah(b.price))}</p>`:""}<a class="btn" target="_blank" rel="noopener" href="https://wa.me/${encodeURIComponent(b.phone||"")}?text=${encodeURIComponent("Halo, saya menemukan usaha Anda di platform Promosi UMKM. Saya tertarik dengan produk Anda.")}">Hubungi via WhatsApp ↗</a></div></div>`:'<div class="empty">Usaha tidak ditemukan atau belum disetujui admin.</div>';
+ if(b && db){const {data:products,error}=await db.from("products").select("id,name,price,image_url,description").eq("business_id",b.id).eq("status","approved").order("created_at",{ascending:false});const wrap=document.querySelector("#business-products");if(wrap){wrap.innerHTML=error?'<p class="hint">Produk belum dapat dimuat.</p>':(products||[]).length?`<h2>Produk dari ${esc(b.name)}</h2><div class="listing product-grid">${products.map(p=>`<article class="card listing-card">${p.image_url?`<div class="listing-cover image-cover"><img src="${esc(p.image_url)}" alt="${esc(p.name)}"></div>`:'<div class="listing-cover">📦</div>'}<div class="listing-body"><h3>${esc(p.name)}</h3>${p.price!==null?`<p class="product-price">${esc(rupiah(p.price))}</p>`:''}${p.description?`<p>${esc(p.description)}</p>`:''}</div></article>`).join('')}</div>`:'<div class="empty">Belum ada produk tambahan.</div>';}}})();}
+const register=document.querySelector("#register-form");
+if(register){
+ const imageInput=register.querySelector('input[name="product_image_file"]');
+ const preview=register.querySelector("#product-image-preview");
+ imageInput?.addEventListener("change",()=>{const file=imageInput.files?.[0];if(!preview)return;if(!file){preview.innerHTML="";return;}if(!file.type.startsWith("image/")){imageInput.value="";preview.textContent="Pilih file gambar.";return;}if(file.size>5*1024*1024){imageInput.value="";preview.textContent="Ukuran gambar maksimal 5 MB.";return;}const url=URL.createObjectURL(file);preview.innerHTML=`<img src="${url}" alt="Pratinjau foto produk" style="max-width:220px;max-height:180px;object-fit:contain;border-radius:12px">`;});
+ register.addEventListener("submit",async e=>{e.preventDefault();const btn=register.querySelector('button[type="submit"]');const message=document.querySelector("#success-message");btn.disabled=true;btn.textContent="Mengirim...";const formData=new FormData(register);const d=Object.fromEntries(formData.entries());const imageFile=d.product_image_file;delete d.product_image_file;d.emoji="🏪";d.status="pending";d.price=d.price?Number(d.price):null;try{if(!db)throw new Error("Website belum dihubungkan ke database. Periksa js/supabase-config.js.");if(imageFile&&imageFile.size>5*1024*1024)throw new Error("Ukuran gambar maksimal 5 MB.");if(imageFile){if(!imageFile.type.startsWith("image/"))throw new Error("File produk harus berupa gambar.");const ext=(imageFile.name.split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,"");const path=`${Date.now()}-${crypto.randomUUID()}.${ext||"jpg"}`;const {error:uploadError}=await db.storage.from(STORAGE_BUCKET).upload(path,imageFile,{contentType:imageFile.type,upsert:false});if(uploadError)throw uploadError;d.product_image=db.storage.from(STORAGE_BUCKET).getPublicUrl(path).data.publicUrl;}
+ const {error}=await db.from("businesses").insert([d]);if(error)throw error;if(message){message.textContent="Pengajuan berhasil dikirim dan menunggu persetujuan admin. Foto, produk, dan harga akan tampil setelah disetujui.";message.style.display="block";}register.reset();if(preview)preview.innerHTML="";
+ }catch(err){alert("Pengajuan belum terkirim: "+(err.message||"Periksa koneksi dan konfigurasi database."));}finally{btn.disabled=false;btn.textContent="Kirim Pengajuan ↗";}});
+}
+const contact=document.querySelector("#contact-form");if(contact){contact.addEventListener("submit",e=>{e.preventDefault();alert("Silakan kirim pesan melalui email syahlendra1303@gmail.com atau Instagram @promosi_usaha_umkm.");});}
+// Admin panel: login menggunakan Supabase Auth.
+const login=document.querySelector("#admin-login");
+if(login){const loginPanel=document.querySelector("#login-panel"),panel=document.querySelector("#admin-panel"),msg=document.querySelector("#login-message"),list=document.querySelector("#submission-list");
+ const checkAdmin=async()=>{if(!db){msg.textContent="Konfigurasi Supabase belum diisi.";return false;}const {data:{user}}=await db.auth.getUser();if(!user)return false;const {data,error}=await db.from("admin_users").select("user_id").eq("user_id",user.id).maybeSingle();if(error||!data){await db.auth.signOut();msg.textContent="Akun ini belum diberi hak admin.";return false;}loginPanel.style.display="none";panel.style.display="block";await loadSubmissions();return true;};
+ const loadSubmissions=async()=>{list.innerHTML="Memuat pengajuan...";const {data,error}=await db.from("businesses").select("*").order("created_at",{ascending:false});if(error){list.textContent="Gagal memuat: "+error.message;return;}if(!data.length){list.innerHTML='<div class="empty">Belum ada pengajuan.</div>';return;}list.innerHTML=data.map(b=>`<article class="card" style="padding:20px;margin-bottom:14px"><div class="listing-body"><span class="meta">${esc(b.category)} • ${esc(b.location)} • Status: <b>${esc(b.status)}</b></span><h3>${esc(b.name)}</h3>${b.product_image?`<img src="${esc(b.product_image)}" alt="Foto produk" style="width:min(100%,300px);max-height:220px;object-fit:contain;border-radius:12px;margin:8px 0">`:""}<p>${esc(b.description)}</p><p><b>Produk:</b> ${esc(b.product)}<br><b>Harga:</b> ${b.price!==null&&b.price!==undefined?esc(rupiah(b.price)):"Tidak dicantumkan"}<br><b>WhatsApp:</b> ${esc(b.phone)}</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-action="approved" data-id="${esc(b.id)}">Setujui</button><button class="btn btn-outline" data-action="rejected" data-id="${esc(b.id)}">Tolak</button></div></div></article>`).join("");};
+ login.addEventListener("submit",async e=>{e.preventDefault();if(!db){msg.textContent="Isi konfigurasi Supabase dahulu.";return;}const f=Object.fromEntries(new FormData(login).entries());msg.textContent="Memeriksa akun...";const {error}=await db.auth.signInWithPassword({email:f.email,password:f.password});if(error){msg.textContent="Login gagal: "+error.message;return;}await checkAdmin();});
+ document.querySelector("#logout-admin")?.addEventListener("click",async()=>{await db?.auth.signOut();panel.style.display="none";loginPanel.style.display="block";});
+ list.addEventListener("click",async e=>{const btn=e.target.closest("button[data-action]");if(!btn)return;btn.disabled=true;const {error}=await db.from("businesses").update({status:btn.dataset.action}).eq("id",btn.dataset.id);if(error)alert("Gagal memperbarui: "+error.message);await loadSubmissions();});
+ const productList=document.querySelector("#product-submission-list");
+ const loadProductSubmissions=async()=>{if(!productList)return;productList.innerHTML="Memuat produk...";const {data,error}=await db.from("products").select("*,businesses(name,location)").order("created_at",{ascending:false});if(error){productList.textContent="Gagal memuat produk: "+error.message;return;}if(!data?.length){productList.innerHTML='<div class="empty">Belum ada pengajuan produk.</div>';return;}productList.innerHTML=data.map(p=>`<article class="card" style="padding:20px;margin-bottom:14px"><div class="listing-body"><span class="meta">Usaha: ${esc(p.businesses?.name||"Tidak diketahui")} • Status: <b>${esc(p.status)}</b></span><h3>${esc(p.name)}</h3>${p.image_url?`<img src="${esc(p.image_url)}" alt="Foto ${esc(p.name)}" style="width:min(100%,300px);max-height:220px;object-fit:contain;border-radius:12px;margin:8px 0">`:""}<p><b>Harga:</b> ${p.price!==null?esc(rupiah(p.price)):"Tidak dicantumkan"}</p><p>${esc(p.description||"")}</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-product-action="approved" data-id="${esc(p.id)}">Setujui Produk</button><button class="btn btn-outline" data-product-action="rejected" data-id="${esc(p.id)}">Tolak Produk</button></div></div></article>`).join("");};
+ productList?.addEventListener("click",async e=>{const btn=e.target.closest("button[data-product-action]");if(!btn)return;btn.disabled=true;const {error}=await db.from("products").update({status:btn.dataset.productAction}).eq("id",btn.dataset.id);if(error)alert("Gagal memperbarui produk: "+error.message);await loadProductSubmissions();});
+ const productAdminObserver=new MutationObserver(()=>{if(panel.style.display!=="none")loadProductSubmissions();});
+ productAdminObserver.observe(panel,{attributes:true,attributeFilter:["style"]});
+ checkAdmin();
+}
+loadListings();
+document.querySelectorAll(".section .head, .section .card, .section .step, .section .formbox, .section .info, .section .cta, .section .detail-layout").forEach((el,i)=>{el.classList.add("reveal");el.style.transitionDelay=`${Math.min(i%6,5)*80}ms`;});
+if("IntersectionObserver" in window){const ob=new IntersectionObserver(es=>es.forEach(x=>{if(x.isIntersecting){x.target.classList.add("visible");ob.unobserve(x.target);}}),{threshold:.12});document.querySelectorAll(".reveal").forEach(x=>ob.observe(x));}else document.querySelectorAll(".reveal").forEach(x=>x.classList.add("visible"));
+
+
+// FORM TAMBAH PRODUK: usaha yang sudah disetujui dipilih, tanpa daftar usaha ulang.
+const addProductForm=document.querySelector("#add-product-form");
+if(addProductForm){
+ const businessSelect=addProductForm.querySelector("#product-business");
+ const fileInput=addProductForm.querySelector("#new-product-image");
+ const preview=addProductForm.querySelector("#new-product-preview");
+ const message=document.querySelector("#product-submit-message");
+ const setMessage=(t,ok=false)=>{if(message){message.textContent=t;message.className=ok?"success":"hint";message.style.display="block";}};
+ (async()=>{
+  if(!db){setMessage("Database belum terhubung.");return;}
+  const {data,error}=await db.from("businesses").select("id,name,phone,location").eq("status","approved").order("name");
+  if(error){setMessage("Gagal memuat daftar usaha: "+error.message);return;}
+  businessSelect.innerHTML='<option value="">Pilih usaha yang sudah terdaftar</option>'+(data||[]).map(b=>`<option value="${esc(b.id)}" data-phone="${esc((b.phone||"").replace(/\D/g,""))}">${esc(b.name)} — ${esc(b.location)}</option>`).join("");
+  if(!(data||[]).length)setMessage("Belum ada usaha yang disetujui. Daftarkan usaha terlebih dahulu.");
+ })();
+ fileInput?.addEventListener("change",()=>{
+  const f=fileInput.files?.[0];if(!preview)return;
+  if(!f){preview.innerHTML="";return;}
+  if(!f.type.startsWith("image/")||f.size>5*1024*1024){fileInput.value="";preview.textContent="Pilih gambar maksimal 5 MB.";return;}
+  preview.innerHTML=`<img src="${URL.createObjectURL(f)}" alt="Pratinjau produk" style="max-width:240px;max-height:180px;object-fit:contain;border-radius:12px">`;
+ });
+ addProductForm.addEventListener("submit",async e=>{
+  e.preventDefault();const btn=addProductForm.querySelector('[type="submit"]');btn.disabled=true;btn.textContent="Mengirim...";
+  try{
+   if(!db)throw new Error("Database belum terhubung.");
+   const fd=new FormData(addProductForm),businessId=fd.get("business_id"),phone=String(fd.get("owner_phone")||"").replace(/\D/g,""),name=String(fd.get("name")||"").trim(),price=fd.get("price"),description=String(fd.get("description")||"").trim(),file=fileInput.files?.[0];
+   const opt=businessSelect.selectedOptions[0],expected=(opt?.dataset.phone||"").replace(/\D/g,"");
+   if(!businessId)throw new Error("Pilih usaha terlebih dahulu.");
+   if(!phone||phone!==expected)throw new Error("Nomor WhatsApp tidak cocok dengan data usaha yang terdaftar.");
+   if(!name)throw new Error("Nama produk wajib diisi.");
+   if(!file||!file.type.startsWith("image/")||file.size>5*1024*1024)throw new Error("Pilih foto produk maksimal 5 MB.");
+   const ext=(file.name.split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,"")||"jpg";
+   const path=`products/${Date.now()}-${crypto.randomUUID()}.${ext}`;
+   const {error:upErr}=await db.storage.from(STORAGE_BUCKET).upload(path,file,{contentType:file.type,upsert:false});if(upErr)throw upErr;
+   const image=db.storage.from(STORAGE_BUCKET).getPublicUrl(path).data.publicUrl;
+   const {error}=await db.from("products").insert([{business_id:Number(businessId),name,price:price?Number(price):null,image_url:image,description,status:"pending"}]);
+   if(error)throw error;
+   addProductForm.reset();if(preview)preview.innerHTML="";setMessage("Produk berhasil dikirim. Produk akan tampil setelah disetujui admin.",true);
+  }catch(err){setMessage("Belum berhasil: "+(err.message||"Periksa kembali data."));}
+  finally{btn.disabled=false;btn.textContent="Kirim Produk untuk Ditinjau ↗";}
+ });
+}
+
+// Daftar produk yang sudah disetujui.
+const publicProductList=document.querySelector("#all-products");
+if(publicProductList){
+ (async()=>{if(!db){publicProductList.innerHTML='<div class="empty">Database belum terhubung.</div>';return;}
+ const {data,error}=await db.from("products").select("id,name,price,image_url,description,businesses(name,location)").eq("status","approved").order("created_at",{ascending:false});
+ publicProductList.innerHTML=error?'<div class="empty">Produk belum dapat dimuat.</div>':(data||[]).length?data.map(p=>`<article class="card listing-card">${p.image_url?`<div class="listing-cover image-cover"><img src="${esc(p.image_url)}" alt="${esc(p.name)}"></div>`:'<div class="listing-cover">📦</div>'}<div class="listing-body"><span class="meta">${esc(p.businesses?.name||"UMKM")} • ${esc(p.businesses?.location||"")}</span><h3>${esc(p.name)}</h3>${p.price!==null?`<p class="product-price">${esc(rupiah(p.price))}</p>`:''}<p>${esc(p.description||"")}</p></div></article>`).join(""):'<div class="empty">Belum ada produk yang disetujui.</div>';
+ })();
+}
